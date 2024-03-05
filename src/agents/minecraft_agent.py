@@ -27,5 +27,9 @@ class MinecraftAgent:
             None
         """
         states = ["forward", "back", "left", "right", "jump", "sprint", "sneak"]
-        for x in range(len(control_state_array)):
-            self.bot.controlState[states[x]] = control_state_array[x]
+        for i in range(len(control_state_array)):
+            # don't send control state if last one sent is the same
+            if getattr(self, states[i]) == control_state_array[i]:
+                continue
+            setattr(self, states[i], control_state_array[i])
+            self.bot.controlState[states[i]] = control_state_array[i]
