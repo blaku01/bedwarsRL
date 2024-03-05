@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 from javascript import require
 
 mineflayer = require("mineflayer")
@@ -5,14 +7,16 @@ mineflayer = require("mineflayer")
 
 class MinecraftAgent:
     def __init__(self, server_ip, port, username):
-        self.forward, self.back, self.left, self.right, self.jump, self.sprint, self.sneak = (
-            False,
-            False,
-            False,
-            False,
-            False,
-            False,
-            False,
+        self.control_state = OrderedDict(
+            [
+                ("forward", False),
+                ("back", False),
+                ("left", False),
+                ("right", False),
+                ("jump", False),
+                ("sprint", False),
+                ("sneak", False),
+            ]
         )
         self.bot = mineflayer.createBot({"host": server_ip, "port": port, "username": username})
 
@@ -22,14 +26,10 @@ class MinecraftAgent:
         Args:
             control_state_array (list): A list of 7 boolean values representing the control states.
                 The order of the states should follow: ['forward', 'back', 'left', 'right', 'jump', 'sprint', 'sneak'].
-
         Returns:
             None
         """
-        states = ["forward", "back", "left", "right", "jump", "sprint", "sneak"]
-        for i in range(len(control_state_array)):
-            # don't send control state if last one sent is the same
-            if getattr(self, states[i]) == control_state_array[i]:
-                continue
-            setattr(self, states[i], control_state_array[i])
-            self.bot.controlState[states[i]] = control_state_array[i]
+        for i, (key, value) in enumerate(self.control_state.items()):
+            if value != control_state_array[i]:
+                self.control_state[key] = control_state_array[i]
+                self.bot.controlState[key] = control_state_array[i]
