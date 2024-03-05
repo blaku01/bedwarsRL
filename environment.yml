@@ -9,3 +9,7 @@ dependencies:
   - pre-commit=3.*
   - docformatter=1.7.*
   - flake8=7.*
+  - jupyter=1.*
+  - ipykernel
+  - pip:
+      - javascript=1!1.*
