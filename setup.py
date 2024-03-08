@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 setup(
-    name="bedwarsRL",
+    name="src",
     version="0.0.1",
     description="bedwars AI using Reinforcement Learning",
     author="Gabriel Blaczek, Przemysław Tomala",
