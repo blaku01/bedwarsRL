@@ -24,33 +24,85 @@ class MinecraftAgent:
                 ("jump", False),
                 ("sprint", False),
                 ("sneak", False),
-                ("swing", False),
             ]
         )
         self.enemy = enemy
         self.bot = mineflayer.createBot({"host": server_ip, "port": port, "username": username})
 
-    def set_control_state(self, control_state_array):
+    def set_control_state(self, control_state_array: list) -> None:
         """Set the control state of the bot based on the provided array of boolean values.
 
         Args:
             control_state_array (list): A list of 7 boolean values representing the control states.
-                The order of the states should follow: ['forward', 'back', 'left', 'right', 'jump', 'sprint', 'sneak', 'swing'].
+                The order of the states should follow: ['forward', 'back', 'left', 'right', 'jump', 'sprint', 'sneak'].
         Returns:
             None
         """
-        self.bot.look(control_state_array[8], control_state_array[9], False)  # rotate head
         for i, (key, value) in enumerate(self.control_state.items()):
             if value != control_state_array[i]:
-                if key == "swing":
-                    entity_on_cursor = self.bot.entityAtCursor()
-                    if entity_on_cursor is not None:
-                        self.bot.attack(entity_on_cursor)
-                else:
-                    self.control_state[key] = control_state_array[i]
-                    self.bot.controlState[key] = control_state_array[i]
+                self.control_state[key] = control_state_array[i]
+                self.bot.controlState[key] = control_state_array[i]
 
-    def get_model_input(self):
+    def swing(self) -> bool:
+        """Attempts to attack the entity currently under the bot's cursor.
+
+        Args: None
+        Returns:
+            bool: True if an attack was performed, False otherwise.
+        """
+        entity_on_cursor = self.bot.entityAtCursor()
+        if entity_on_cursor is not None:
+            self.bot.attack(entity_on_cursor)
+            return True
+        return False
+
+    def look_around(self, pitch: float, yaw: float) -> None:
+        """Orients the bot's viewpoint in the Minecraft world.
+
+        This function takes two arguments, pitch and yaw, which represent the desired rotation
+
+        Args:
+            pitch (float): The rotation around the X axis (up/down).
+            yaw (float): The rotation around the Y axis (left/right).
+        Returns:
+            None
+        """
+        self.bot.look(pitch, yaw, True)
+
+    def update_agent_state(self, state: list) -> None:
+        """Updates the bot's control state and orientation based on a provided state list.
+
+        This function takes a list containing the desired state of the agent. The array should
+        have exactly 10 elements in the following order:
+
+        - The first 7 elements are booleans representing the bot's movement controls:
+            - state[0] (bool): Move forward
+            - state[1] (bool): Move backward
+            - state[2] (bool): Move left
+            - state[3] (bool): Move right
+            - state[4] (bool): Jump
+            - state[5] (bool): Sprint
+            - state[6] (bool): Sneak
+        - The next 2 elements are floats representing the desired rotation of the bot's head:
+            - state[7] (float): Pitch (rotation around the X axis, up/down)
+            - state[8] (float): Yaw (rotation around the Y axis, left/right)
+        - The last element is a boolean representing the swing action
+            - state[9] (bool): swing (attack or not)
+        Args:
+            state (list): A list representing the desired state of the agent (format: [bool, bool, ..., bool, float, float]).
+
+        Returns:
+            None
+        """
+        control_state = state[:7]
+        self.set_control_state(control_state)
+
+        self.look_around(state[7], state[8])
+
+        if state[9]:
+            self.swing()
+
+    def get_model_input(self) -> np.ndarray:
         """Prepares the model input by gathering information about the enemy and bot's
         surroundings.
 
@@ -85,7 +137,11 @@ class MinecraftAgent:
 
         bot_position = [self.bot.entity.position["x"], self.bot.entity.position["z"]]
 
-        distance_angle = np.array(calculate_distance_and_angle(bot_position, enemy_positions[0]))
+        distance_angle = (
+            np.array(calculate_distance_and_angle(bot_position, enemy_positions[0]))
+            if enemy_positions
+            else None
+        )
 
         distance_to_walls = distance_to_all_rectangle_walls(bot_position, corner_1, corner_2)
 
@@ -93,3 +149,6 @@ class MinecraftAgent:
 
         model_input = np.concatenate((distance_angle, distance_to_walls.flatten(), head_rotation))
         return model_input
+
+
+# %%
