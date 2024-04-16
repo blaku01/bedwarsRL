@@ -30,6 +30,7 @@ class MinecraftAgent:
         self.enemy = enemy
         self.bot = mineflayer.createBot({"host": server_ip, "port": port, "username": username})
         self.previous_distance = None
+        self.attack_count = 0
 
     def set_control_state(self, control_state_array: list) -> None:
         """Set the control state of the bot based on the provided array of boolean values.
@@ -71,6 +72,16 @@ class MinecraftAgent:
         """
         self.bot.look(pitch, yaw, True)
 
+    def get_enemy(self):
+        for entity_name, entity_data in self.bot.entities.valueOf().items():
+            if (
+                entity_data.get("type") == "player"
+                and entity_data.get("username") != self.bot.username
+                and entity_data.get("username") == self.enemy
+            ):
+                return entity_data
+        return None
+
     def update_agent_state(self, state: list) -> float:
         """Updates the bot's control state and orientation based on a provided state list.
 
@@ -96,16 +107,12 @@ class MinecraftAgent:
         Returns:
             Q value of action taken by the agent
         """
-        enemy_x = None
-        enemy_z = None
-        for entity_name, entity_data in self.bot.entities.valueOf().items():
-            if (
-                entity_data.get("type") == "player"
-                and entity_data.get("username") != self.bot.username
-                and entity_data.get("username") == self.enemy
-            ):
-                enemy_x = entity_data["position"]["x"]
-                enemy_z = entity_data["position"]["z"]
+        enemy = self.get_enemy()
+        if enemy is not None:
+            enemy_x = enemy["position"]["x"]
+            enemy_z = enemy["position"]["z"]
+        else:
+            enemy_x, enemy_z = None, None
 
         if self.previous_distance is None:
             if enemy_x and enemy_z:
@@ -121,6 +128,7 @@ class MinecraftAgent:
 
         if state[9]:
             attacked = self.swing()
+            self.attack_count += 1
         else:
             attacked = 0
 
