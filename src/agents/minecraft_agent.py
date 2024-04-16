@@ -4,6 +4,7 @@ import numpy as np
 from javascript import require
 
 from src.utils.helpers import (
+    calculate_distance,
     calculate_distance_and_angle,
     distance_to_all_rectangle_walls,
 )
@@ -28,6 +29,7 @@ class MinecraftAgent:
         )
         self.enemy = enemy
         self.bot = mineflayer.createBot({"host": server_ip, "port": port, "username": username})
+        self.previous_distance = None
 
     def set_control_state(self, control_state_array: list) -> None:
         """Set the control state of the bot based on the provided array of boolean values.
@@ -69,7 +71,7 @@ class MinecraftAgent:
         """
         self.bot.look(pitch, yaw, True)
 
-    def update_agent_state(self, state: list) -> None:
+    def update_agent_state(self, state: list) -> float:
         """Updates the bot's control state and orientation based on a provided state list.
 
         This function takes a list containing the desired state of the agent. The array should
@@ -92,15 +94,45 @@ class MinecraftAgent:
             state (list): A list representing the desired state of the agent (format: [bool, bool, ..., bool, float, float]).
 
         Returns:
-            None
+            Q value of action taken by the agent
         """
+        enemy_x = None
+        enemy_z = None
+        for entity_name, entity_data in self.bot.entities.valueOf().items():
+            if (
+                entity_data.get("type") == "player"
+                and entity_data.get("username") != self.bot.username
+                and entity_data.get("username") == self.enemy
+            ):
+                enemy_x = entity_data["position"]["x"]
+                enemy_z = entity_data["position"]["z"]
+
+        if self.previous_distance is None:
+            if enemy_x and enemy_z:
+                bot_pos = self.bot.entity["position"]
+                self.previous_distance = calculate_distance(
+                    enemy_x, enemy_z, bot_pos["x"], bot_pos["z"]
+                )
+
         control_state = state[:7]
         self.set_control_state(control_state)
 
         self.look_around(state[7], state[8])
 
         if state[9]:
-            self.swing()
+            attacked = self.swing()
+        else:
+            attacked = 0
+
+        if enemy_x and enemy_z:
+            bot_pos = self.bot.entity["position"]
+            current_distance = calculate_distance(enemy_x, enemy_z, bot_pos["x"], bot_pos["z"])
+            delta_distance = current_distance - self.previous_distance
+            self.previous_distance = current_distance
+        else:
+            delta_distance = 0
+
+        return float(attacked) + 1 / 10 * delta_distance
 
     def get_model_input(self) -> np.ndarray:
         """Prepares the model input by gathering information about the enemy and bot's
