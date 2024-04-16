@@ -11,5 +11,6 @@ dependencies:
   - flake8=7.*
   - jupyter=1.*
   - ipykernel
+  - numpy=1.26.*
   - pip:
       - javascript=1!1.*
