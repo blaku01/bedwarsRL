@@ -554,3 +554,7 @@ FodyWeavers.xsd
 *.sln.iml
 
 bedwarsRL
+
+server
+
+.idea/
