@@ -13,4 +13,7 @@ dependencies:
   - ipykernel
   - numpy=1.26.*
   - pip:
-      - javascript=1!1.*
+      - javascript==1!1.*
+      - gymnasium
+      - -e .
+      - pytorchrl
