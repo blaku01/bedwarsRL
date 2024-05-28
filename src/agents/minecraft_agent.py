@@ -29,7 +29,7 @@ class MinecraftAgent:
             ]
         )
         self.enemy = enemy
-        self.bot = mineflayer.createBot({"host": server_ip, "port": port, "username": username})
+        self.bot = mineflayer.createBot({"host": server_ip, "port": port, "username": username, "checkTimeoutInterval":60 * 100})
         self.previous_distance = None
         self.attack_count = 0
 
