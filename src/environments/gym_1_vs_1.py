@@ -14,19 +14,19 @@ class MinecraftGym(gym.Env):
         self.agents = self.get_agents()  # Initialize agents
         self.action_space = spaces.MultiDiscrete([2] * 7)  # 7 binary discrete actions
         self.observation_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(13,), dtype=np.float32
+            low=-np.inf, high=np.inf, shape=(8,), dtype=np.float32
         )  # Observation space
         self.iters = 0
 
     def get_observations(self):
         try:
             observations = np.array([agent.get_model_input() for agent in self.agents])
-            if observations.shape != (2, 13):
+            if observations.shape != (2, 8):
                 raise ValueError(f"Invalid observation shape: {observations.shape}")
             return observations
         except Exception as e:
             logging.error(f"Error in getting observations: {e}")
-            return np.zeros((2, 13))  # Return a default valid observation
+            return np.zeros((2, 8))  # Return a default valid observation
 
     def get_agents(self):
         try:
@@ -46,12 +46,12 @@ class MinecraftGym(gym.Env):
             self.iters = 0
             # Return initial observation
             observations = self.get_observations()
-            if observations.shape != (2, 13):
+            if observations.shape != (2, 8):
                 raise ValueError(f"Invalid observation shape on reset: {observations.shape}")
             return observations, {}
         except Exception as e:
             logging.error(f"Error in reset: {e}")
-            return np.zeros((2, 13)), {}
+            return np.zeros((2, 8)), {}
 
     def step(self, actions):
         self.iters += 1
@@ -60,7 +60,7 @@ class MinecraftGym(gym.Env):
             for agent, action in zip(self.agents, actions):
                 reward += agent.update_agent_state(action)
             observations = self.get_observations()
-            if observations.shape != (2, 13):
+            if observations.shape != (2, 8):
                 raise ValueError(f"Invalid observation shape in step: {observations.shape}")
 
             terminated = any([agent.attack_count > 3 for agent in self.agents])
@@ -69,7 +69,7 @@ class MinecraftGym(gym.Env):
             return observations, reward, terminated, truncated, {}
         except Exception as e:
             logging.error(f"Error in step: {e}")
-            return np.zeros((2, 13)), 0, False, False, {}
+            return np.zeros((2, 8)), 0, False, False, {}
 
     def render(self, mode="human"):
         # Optionally implement rendering for visualization

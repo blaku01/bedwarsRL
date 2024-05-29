@@ -181,13 +181,10 @@ class MinecraftAgent:
         distance_angle = (
             np.array(calculate_distance_and_angle(bot_position, enemy_positions[0]))
             if enemy_positions
-            else None
+            else (None, None)
         )
-
         distance_to_walls = distance_to_all_rectangle_walls(bot_position, corner_1, corner_2)
-
-        head_rotation = np.array([self.bot.entity.yaw, self.bot.entity.pitch])
-
+        head_rotation = np.array([self.bot.entity.yaw, self.bot.entity.pitch]) # 2
         model_input = np.concatenate((distance_angle, distance_to_walls.flatten(), head_rotation))
         return model_input
 

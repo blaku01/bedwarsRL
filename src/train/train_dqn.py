@@ -86,14 +86,14 @@ def train_dqn(env, num_episodes, batch_size, gamma=0.99, epsilon_start=1.0, epsi
 
     for episode in range(num_episodes):
         state, _ = env.reset()
-        if state is None or state.shape != (2, 13):
+        if state is None or state.shape != (2, 8):
             logging.error(f"Skipping episode {episode} due to failed reset or invalid state shape.")
             continue
         state = torch.tensor(state, device=device, dtype=torch.float32)
         for t in range(1000):
             action = select_action(state)
             next_state, reward, done, truncated, _ = env.step(action.view(-1).cpu().numpy())
-            if next_state is None or next_state.shape != (2, 13):
+            if next_state is None or next_state.shape != (2, 8):
                 logging.error(f"Skipping step {t} in episode {episode} due to invalid next state.")
                 break
             reward = torch.tensor([reward], device=device)
