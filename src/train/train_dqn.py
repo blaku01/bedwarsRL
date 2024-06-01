@@ -43,7 +43,7 @@ class ReplayMemory:
 
 
 def train_dqn(env, num_episodes, batch_size, gamma=0.99, epsilon_start=1.0, epsilon_end=0.1, epsilon_decay=500,
-              target_update=10, memory_capacity=10000):
+              target_update=10, memory_capacity=1000000):
     logger.info("Starting DQN training")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
@@ -70,23 +70,22 @@ def train_dqn(env, num_episodes, batch_size, gamma=0.99, epsilon_start=1.0, epsi
 
         if sample > epsilon:
             with torch.no_grad():
-                policy_output = policy_net(state)
+                policy_output = policy_net(state)[0]
+                logger.info(f"policy net output: {policy_output}")
 
-                # Assuming policy_net outputs a tensor of appropriate shape
-                action_booleans = (policy_output[:7] > 0.5).int().cpu().numpy()  # First 7 values as booleans
-                action_floats = policy_output[7:9].cpu().numpy()  # Next 2 values as floats
-                action_last_boolean = (policy_output[9] > 0.5).int().item()  # Last value as boolean
+                action_booleans = (policy_output[:7] > 0.5).int()  # First 7 values as booleans
+                action_floats = policy_output[7:9]  # Next 2 values as floats
+                action_last_boolean = (policy_output[9] > 0.5).int()  # Last value as boolean
 
-                action = np.concatenate((action_booleans.flatten(), action_floats.flatten(), np.array((action_last_boolean,)).flatten())).flatten()
+                action = torch.cat((action_booleans, action_floats, action_last_boolean.unsqueeze(0)))
                 logger.debug(f"Selected action from policy network: {action}")
                 return action
         else:
-            action_booleans = torch.tensor(random.choices([0, 1], k=7), device=device, dtype=torch.int).numpy()
-            action_floats = torch.tensor([random.uniform(0.0, 1.0) for _ in range(2)], device=device,
-                                         dtype=torch.float).numpy()
-            action_last_boolean = torch.tensor(random.choice([0, 1]), device=device, dtype=torch.int).item()
+            action_booleans = torch.tensor(random.choices([0, 1], k=7), device=device, dtype=torch.int)
+            action_floats = torch.tensor([random.uniform(0.0, 1.0) for _ in range(2)], device=device, dtype=torch.float)
+            action_last_boolean = torch.tensor(random.choice([0, 1]), device=device, dtype=torch.int)
 
-            action = np.concatenate((action_booleans.flatten(), action_floats.flatten(), np.array((action_last_boolean,)).flatten())).flatten()
+            action = torch.cat((action_booleans, action_floats, action_last_boolean.unsqueeze(0)))
             logger.debug(f"Selected random action: {action}")
             return action
 
@@ -103,10 +102,12 @@ def train_dqn(env, num_episodes, batch_size, gamma=0.99, epsilon_start=1.0, epsi
         reward_batch = torch.cat(batch.reward)
         next_state_batch = torch.cat(batch.next_state)
 
-        state_action_values = policy_net(state_batch).view(batch_size, -1, 7).gather(2, action_batch.unsqueeze(
-            -1)).squeeze(-1)
+        logger.info(f"state_action_values_shape: {action_batch.shape}")
+        logger.info(f"policy_net(state_batch) shape: {policy_net(state_batch).shape}")
+        state_action_values = policy_net(state_batch).gather(1, action_batch.unsqueeze(-1).to(torch.int64)).squeeze(-1)
 
-        next_state_values = target_net(next_state_batch).view(batch_size, -1, 7).max(2)[0].detach()
+
+        next_state_values = target_net(next_state_batch).view(batch_size, -1, 10).max(2)[0].detach()
         expected_state_action_values = (next_state_values * gamma) + reward_batch.unsqueeze(1)
 
         loss = nn.MSELoss()(state_action_values, expected_state_action_values)

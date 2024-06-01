@@ -35,7 +35,7 @@ class MinecraftAgent:
         self.bot = mineflayer.createBot({"host": server_ip, "port": port, "username": username, "checkTimeoutInterval": 60 * 100})
         self.previous_distance = None
         self.attack_count = 0
-        self.enemy_entity = None
+        self.enemy_bot = None
         logger.info("MinecraftAgent initialized")
 
     def set_control_state(self, control_state_array: list) -> None:
@@ -81,18 +81,15 @@ class MinecraftAgent:
     def update_agent_state(self, state: list) -> float:
         """Updates the bot's control state and orientation based on a provided state list."""
         logger.debug(f"Updating agent state: {state}")
-        enemy = self.enemy_entity
-        if enemy is not None:
-            enemy_x = enemy["position"]["x"]
-            enemy_z = enemy["position"]["z"]
-        else:
-            enemy_x, enemy_z = None, None
+        enemy = self.enemy_bot.entity
+
+        enemy_x = enemy["position"]["x"]
+        enemy_z = enemy["position"]["z"]
 
         if self.previous_distance is None:
-            if enemy_x and enemy_z:
-                bot_pos = self.bot.entity["position"]
-                self.previous_distance = calculate_distance(enemy_x, enemy_z, bot_pos["x"], bot_pos["z"])
-                logger.info(f"Initial distance to enemy set: {self.previous_distance}")
+            bot_pos = self.bot.entity["position"]
+            self.previous_distance = calculate_distance(enemy_x, enemy_z, bot_pos["x"], bot_pos["z"])
+            logger.info(f"Initial distance to enemy set: {self.previous_distance}")
 
         control_state = state[:7]
         self.set_control_state(control_state)
@@ -105,14 +102,11 @@ class MinecraftAgent:
         else:
             attacked = 0
 
-        if enemy_x and enemy_z:
-            bot_pos = self.bot.entity["position"]
-            current_distance = calculate_distance(enemy_x, enemy_z, bot_pos["x"], bot_pos["z"])
-            delta_distance = current_distance - self.previous_distance
-            self.previous_distance = current_distance
-            logger.debug(f"Distance to enemy updated: {current_distance}")
-        else:
-            delta_distance = 0
+        bot_pos = self.bot.entity["position"]
+        current_distance = calculate_distance(enemy_x, enemy_z, bot_pos["x"], bot_pos["z"])
+        delta_distance = current_distance - self.previous_distance
+        self.previous_distance = current_distance
+        logger.debug(f"Distance to enemy updated: {current_distance}")
 
         q_value = float(attacked) + 1 / 10 * delta_distance
         logger.info(f"Agent state updated, Q value: {q_value}")
@@ -121,23 +115,10 @@ class MinecraftAgent:
     def get_model_input(self) -> np.ndarray:
         """Prepares the model input by gathering information about the enemy and bot's surroundings."""
         logger.debug("Getting model input")
-        enemy_positions = []
-        for entity_name, entity_data in self.bot.entities.valueOf().items():
-            logger.debug(f"entity_name: {entity_name},type: {entity_data.get('type')}")
-            if (
-                entity_data.get("type") == "player"
-                and entity_data.get("username") != self.bot.username
-                and entity_data.get("username") == self.enemy
-            ):
-                enemy_positions.append((entity_data["position"]["x"], entity_data["position"]["z"]))
 
         bot_position = [self.bot.entity.position["x"], self.bot.entity.position["z"]]
-
-        distance_angle = (
-            np.array(calculate_distance_and_angle(bot_position, enemy_positions[0]))
-            if enemy_positions
-            else (None, None)
-        )
+        enemy_position = [self.enemy_bot.entity["position"]["x"], self.enemy_bot.entity["position"]["z"]]
+        distance_angle = np.array(calculate_distance_and_angle(bot_position, enemy_position))
         distance_to_walls = distance_to_all_rectangle_walls(bot_position, corner_1, corner_2)
         head_rotation = np.array([self.bot.entity.yaw, self.bot.entity.pitch])  # 2
         model_input = np.concatenate((distance_angle, distance_to_walls.flatten(), head_rotation))

@@ -37,10 +37,12 @@ class MinecraftGym(gym.Env):
 
     def get_agents(self):
         try:
-            bot_1 = MinecraftAgent(server_ip="127.0.0.1", port=25565, username="bot1", enemy="bot2")
+            bot_1 = MinecraftAgent(server_ip="26.70.149.205", port=25565, username="bot1", enemy="bot2")
             time.sleep(5)  # Ensure the agent is ready
-            bot_2 = MinecraftAgent(server_ip="127.0.0.1", port=25565, username="bot2", enemy="bot1")
+            bot_2 = MinecraftAgent(server_ip="26.70.149.205", port=25565, username="bot2", enemy="bot1")
             time.sleep(5)  # Ensure the agent is ready
+            bot_1.enemy_bot = bot_2.bot
+            bot_2.enemy_bot = bot_1.bot
             return bot_1, bot_2
         except Exception as e:
             logger.error(f"Error in initializing agents: {e}")
