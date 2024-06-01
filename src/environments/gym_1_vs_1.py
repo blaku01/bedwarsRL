@@ -2,31 +2,38 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 import time
-import logging
 from src.agents.minecraft_agent import MinecraftAgent
+import itertools
+from loguru import logger
 
-logging.basicConfig(level=logging.INFO)
+# Configure loguru to log into a file
+logger.add("dqn_training.log", rotation="500 MB", level="DEBUG")
 
 class MinecraftGym(gym.Env):
     def __init__(self, device=""):
         super(MinecraftGym, self).__init__()
         self.device = device
         self.agents = self.get_agents()  # Initialize agents
-        self.action_space = spaces.MultiDiscrete([2] * 7)  # 7 binary discrete actions
+        self.action_space = spaces.Tuple((
+            spaces.MultiDiscrete([2] * 7),  # 7 booleans
+            spaces.Box(low=np.array([0.0, 0.0]), high=np.array([1.0, 1.0]), dtype=np.float32),  # 2 floats
+            spaces.Discrete(2)  # 1 boolean
+        ))
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(8,), dtype=np.float32
         )  # Observation space
         self.iters = 0
-
-    def get_observations(self):
+        self.current_agent = None
+        self.agents_iter = itertools.cycle(self.agents)
+    def get_observation(self):
         try:
-            observations = np.array([agent.get_model_input() for agent in self.agents])
-            if observations.shape != (2, 8):
-                raise ValueError(f"Invalid observation shape: {observations.shape}")
-            return observations
+            observation = self.current_agent.get_model_input()
+            if observation.shape != (8,):
+                raise ValueError(f"Invalid observation shape: {observation.shape}")
+            return observation
         except Exception as e:
-            logging.error(f"Error in getting observations: {e}")
-            return np.zeros((2, 8))  # Return a default valid observation
+            logger.error(f"Error in getting observations: {e}")
+            return np.zeros(8)  # Return a default valid observation
 
     def get_agents(self):
         try:
@@ -36,7 +43,7 @@ class MinecraftGym(gym.Env):
             time.sleep(5)  # Ensure the agent is ready
             return bot_1, bot_2
         except Exception as e:
-            logging.error(f"Error in initializing agents: {e}")
+            logger.error(f"Error in initializing agents: {e}")
             return None, None
 
     def reset(self):
@@ -44,32 +51,44 @@ class MinecraftGym(gym.Env):
             for agent in self.agents:
                 agent.bot.chat(f"/kill {agent.bot.username}")
             self.iters = 0
+            self.current_agent = next(self.agents_iter)
             # Return initial observation
-            observations = self.get_observations()
-            if observations.shape != (2, 8):
-                raise ValueError(f"Invalid observation shape on reset: {observations.shape}")
-            return observations, {}
+            observation = self.get_observation()
+            if observation.shape != (8,):
+                raise ValueError(f"Invalid observation shape on reset: {observation.shape}")
+            return observation, {}
         except Exception as e:
-            logging.error(f"Error in reset: {e}")
-            return np.zeros((2, 8)), {}
+            logger.error(f"Error in reset: {e}")
+            return np.zeros(8), {}
 
-    def step(self, actions):
+    def step(self, action):
+        action = action.tolist()
+        action[:7] = [bool(a) for a in action[:7]]
+        action[9] = bool(action[9])
+        logger.info(f"Action: {action}")
         self.iters += 1
         try:
             reward = 0
-            for agent, action in zip(self.agents, actions):
-                reward += agent.update_agent_state(action)
-            observations = self.get_observations()
-            if observations.shape != (2, 8):
-                raise ValueError(f"Invalid observation shape in step: {observations.shape}")
+            reward += self.current_agent.update_agent_state(action)
+            logger.debug(f"Updated agent state with action {action}, reward: {reward}")
+
+            observation = self.get_observation()
+            logger.debug(f"Obtained observation: {observation}")
+
+            self.current_agent = next(self.agents_iter)
+            logger.debug(f"Switched to next agent: {self.current_agent}")
+
+            if observation.shape != (8,):
+                raise ValueError(f"Invalid observation shape in step: {observation.shape}")
 
             terminated = any([agent.attack_count > 3 for agent in self.agents])
             truncated = self.iters > 500
+            logger.info(f"Step result - Terminated: {terminated}, Truncated: {truncated}")
 
-            return observations, reward, terminated, truncated, {}
+            return observation, reward, terminated, truncated, {}
         except Exception as e:
-            logging.error(f"Error in step: {e}")
-            return np.zeros((2, 8)), 0, False, False, {}
+            logger.error(f"Error in step: {e}")
+            return np.zeros(8), 0, False, False, {}
 
     def render(self, mode="human"):
         # Optionally implement rendering for visualization
@@ -81,7 +100,7 @@ class MinecraftGym(gym.Env):
                 agent.bot.end()
                 time.sleep(1)
         except Exception as e:
-            logging.error(f"Error in close: {e}")
+            logger.error(f"Error in close: {e}")
 
 # Ensure the environment is registered with Gym
 from gymnasium.envs.registration import register
