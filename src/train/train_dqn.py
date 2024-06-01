@@ -9,7 +9,6 @@ from loguru import logger
 # Configure loguru to log into a file
 logger.add("dqn_training.log", rotation="500 MB", level="DEBUG")
 
-
 class DQN(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(DQN, self).__init__()
@@ -20,9 +19,8 @@ class DQN(nn.Module):
     def forward(self, x):
         x = torch.relu(self.fc1(x))
         x = torch.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = torch.sigmoid(self.fc3(x))  # Ensure outputs are in range [0, 1]
         return x
-
 
 class ReplayMemory:
     def __init__(self, capacity):
@@ -40,7 +38,6 @@ class ReplayMemory:
 
     def __len__(self):
         return len(self.memory)
-
 
 def train_dqn(env, num_episodes, batch_size, gamma=0.99, epsilon_start=1.0, epsilon_end=0.1, epsilon_decay=500,
               target_update=10, memory_capacity=1000000):
@@ -98,19 +95,26 @@ def train_dqn(env, num_episodes, batch_size, gamma=0.99, epsilon_start=1.0, epsi
         batch = memory.Transition(*zip(*transitions))
 
         state_batch = torch.cat(batch.state)
-        action_batch = torch.cat(batch.action)
+        action_batch = torch.stack(batch.action).to(device)
         reward_batch = torch.cat(batch.reward)
         next_state_batch = torch.cat(batch.next_state)
 
-        logger.info(f"state_action_values_shape: {action_batch.shape}")
+        logger.info(f"action_batch shape: {action_batch.shape}")
+        logger.info(f"state_batch shape: {state_batch.shape}")
         logger.info(f"policy_net(state_batch) shape: {policy_net(state_batch).shape}")
-        state_action_values = policy_net(state_batch).gather(1, action_batch.unsqueeze(-1).to(torch.int64)).squeeze(-1)
+        # Ensure action_batch is reshaped correctly for gather
+        if action_batch.dim() == 1:
+            action_batch = action_batch.unsqueeze(1)
 
+        # Note: Ensure action_batch has appropriate indices for gather
+        state_action_values = policy_net(state_batch).gather(1, action_batch.to(dtype=torch.int64))
 
-        next_state_values = target_net(next_state_batch).view(batch_size, -1, 10).max(2)[0].detach()
-        expected_state_action_values = (next_state_values * gamma) + reward_batch.unsqueeze(1)
+        next_state_values = target_net(next_state_batch).max(1)[0].detach()
+        expected_state_action_values = (next_state_values * gamma) + reward_batch
 
-        loss = nn.MSELoss()(state_action_values, expected_state_action_values)
+        logger.info(f"state_action_values shape: {state_action_values.shape}")
+        logger.info(f"expected_state_action_values shape: {expected_state_action_values.shape}")
+        loss = nn.MSELoss()(state_action_values.squeeze(-1), expected_state_action_values)
 
         optimizer.zero_grad()
         loss.backward()
