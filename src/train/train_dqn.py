@@ -109,12 +109,13 @@ def train_dqn(env, num_episodes, batch_size, gamma=0.99, epsilon_start=1.0, epsi
         # Note: Ensure action_batch has appropriate indices for gather
         state_action_values = policy_net(state_batch).gather(1, action_batch.to(dtype=torch.int64))
 
-        next_state_values = target_net(next_state_batch).max(1)[0].detach()
-        expected_state_action_values = (next_state_values * gamma) + reward_batch
+        next_state_values = target_net(next_state_batch).detach()
+        logger.info(f"next_state_values shape: {next_state_values.shape}")
+        expected_state_action_values = (next_state_values.T * gamma) + reward_batch
 
         logger.info(f"state_action_values shape: {state_action_values.shape}")
         logger.info(f"expected_state_action_values shape: {expected_state_action_values.shape}")
-        loss = nn.MSELoss()(state_action_values.squeeze(-1), expected_state_action_values)
+        loss = nn.MSELoss()(state_action_values.T, expected_state_action_values)
 
         optimizer.zero_grad()
         loss.backward()
