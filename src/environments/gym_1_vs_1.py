@@ -25,6 +25,7 @@ class MinecraftGym(gym.Env):
         self.iters = 0
         self.current_agent = None
         self.agents_iter = itertools.cycle(self.agents)
+        self.current_time = 0
     def get_observation(self):
         try:
             observation = self.current_agent.get_model_input()
@@ -52,8 +53,17 @@ class MinecraftGym(gym.Env):
         try:
             for agent in self.agents:
                 agent.bot.chat(f"/kill {agent.bot.username}")
+            time.sleep(2)
             self.iters = 0
             self.current_agent = next(self.agents_iter)
+
+            bot_time = self.current_agent.bot.time.age
+            if bot_time == self.current_time:
+                logger.error("bot bugged?")
+                raise SystemExit(0)
+                raise RuntimeError("bot bugged?")
+                
+            self.current_time = bot_time
             # Return initial observation
             observation = self.get_observation()
             if observation.shape != (8,):
@@ -83,8 +93,8 @@ class MinecraftGym(gym.Env):
             if observation.shape != (8,):
                 raise ValueError(f"Invalid observation shape in step: {observation.shape}")
 
-            terminated = any([agent.attack_count > 3 for agent in self.agents])
-            truncated = self.iters > 500
+            terminated = 0 #any([agent.attack_count > 3 for agent in self.agents])
+            truncated = 0
             logger.info(f"Step result - Terminated: {terminated}, Truncated: {truncated}")
 
             return observation, reward, terminated, truncated, {}

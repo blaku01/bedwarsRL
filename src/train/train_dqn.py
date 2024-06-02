@@ -1,3 +1,4 @@
+import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -152,6 +153,7 @@ def train_dqn(env, num_episodes, batch_size, gamma=0.99, epsilon_start=1.0, epsi
                 break
 
         if episode % target_update == 0:
+            logger.debug("starting to load state dict")
             target_net.load_state_dict(policy_net.state_dict())
             logger.info(f"Updated target network at episode {episode}")
 
